@@ -42,7 +42,7 @@
 	 load_module/3,
 	 load/2]).
 
-%%-define(DEBUG,true).
+-define(DEBUG,true).
 -define(DO_ASSERT,true).
 -define(HIPE_LOGGING,true).
 
