@@ -543,8 +543,19 @@ write_file(_, _) ->
 %% Returns {error, Reason} | {ok, BytesCopied}
 sendfile(#file_descriptor{module = ?MODULE, data = {Port, _}},
 	 DestFD, Offset, Bytes) ->
-    drv_command(Port, <<?FILE_SENDFILE, DestFD:32,
-			Offset:64, Bytes:64>>).
+    ok = drv_command(Port, <<?FILE_SENDFILE, DestFD:32, Offset:64, Bytes:64>>),
+    Self = self(),
+    %% Should we use a ref()?
+    Res = receive
+	      {efile_reply, Self, Port, {ok, _Written}=OKRes}->
+		  OKRes;
+	      {efile_reply, Self, Port, {error, _PosixError}=Error}->
+		  Error;
+	      Unexpected ->
+		  Unexpected
+	  end,
+    io:format("prim_file:sendfile/4: Res: ~p~n", [Res]),
+    Res.
 
 %%%-----------------------------------------------------------------
 %%% Functions operating on files without handle to the file. ?DRV.

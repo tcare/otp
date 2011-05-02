@@ -3964,10 +3964,12 @@ sendfile(Config) when is_list(Config) ->
 	    ?line test_server:format("sendfile test file = ~p", [Real]),
 	    Host = "localhost",
 
-	    ?line {error, Error} = file:sendfile(Real, -1),
-	    ?line test_server:format("sendfile error = ~p", [Error]),
-	    %% Unix ebadf, Windows eio
-	    ?line true = Error =:= ebadf orelse Error =:= eio,
+	    %% Disabled because with driver_select I cannot test for
+	    %% invalid out_fd
+	    %% ?line {error, Error} = file:sendfile(Real, -1),
+	    %% ?line test_server:format("sendfile error = ~p", [Error]),
+	    %% %% Unix ebadf, Windows eio
+	    %% ?line true = Error =:= ebadf orelse Error =:= eio,
 
 	    ?line ok = sendfile_send(Host, Real),
 	    ?line ok = sendfile_send_chunked(Host, Real);

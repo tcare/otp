@@ -1475,6 +1475,8 @@ efile_sendfile(Efile_error* errInfo, int in_fd, int out_fd,
 {
 #if defined(__linux__) || (defined(__sun) && defined(__SVR4))
     ssize_t retval = sendfile(out_fd, in_fd, offset, *count);
+    /* printf("     efile_sendfile(..., %d, %d, %p=%ld, %p=%ld)\n", */
+    /* 	   in_fd, out_fd, offset, (long int)*offset, count, (long int)*count); */
     if (retval >= 0) {
 	if (retval != *count) {
 	    *count = retval;
