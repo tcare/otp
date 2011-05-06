@@ -3964,6 +3964,7 @@ sendfile(Config) when is_list(Config) ->
 	    ?line test_server:format("sendfile test file = ~p", [Real]),
 	    Host = "localhost",
 
+	    %% TODO: find another way to test for {error, posix_error()}?
 	    %% Disabled because with driver_select I cannot test for
 	    %% invalid out_fd
 	    %% ?line {error, Error} = file:sendfile(Real, -1),

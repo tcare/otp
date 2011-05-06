@@ -263,6 +263,7 @@ typedef struct {
 	/* TODO: Use Sint64 instead? What about 32-bit off_t linux */
 	off_t offset;
 	size_t count;
+	size_t chunksize;
 	ErlDrvSInt64 written;
     } sendfile;
 } file_descriptor;
@@ -1857,23 +1858,32 @@ static void do_sendfile(file_descriptor *d)
     int out_fd = d->sendfile.out_fd;
     off_t offset = d->sendfile.offset;
     size_t count = d->sendfile.count;
+    size_t chunksize = count < d->sendfile.chunksize
+	? count : d->sendfile.chunksize;
     int result_ok = 0;
     Efile_error errInfo;
 
-    result_ok = efile_sendfile(&errInfo, fd, out_fd, &offset, &count);
+    result_ok = efile_sendfile(&errInfo, fd, out_fd, &offset, &chunksize);
 
     if (result_ok) {
-	d->sendfile.written += count;
-	printf("==> sendfile DONE count=%ld eagain=%d written=%llu\n\n",
-	       (long int)count, d->sendfile.eagain, d->sendfile.written);
-	ef_send_ok_int64(d, d->caller, &d->sendfile.written);
-	driver_select(d->port, (ErlDrvEvent)d->sendfile.out_fd,
-		      ERL_DRV_USE|ERL_DRV_WRITE, 0);
+	d->sendfile.offset += chunksize;
+	d->sendfile.written += chunksize;
+	d->sendfile.count -= chunksize;
+	if (d->sendfile.count > 0) {
+	    driver_select(d->port, (ErlDrvEvent)d->sendfile.out_fd,
+			  ERL_DRV_USE|ERL_DRV_WRITE, 1);
+	} else {
+	    printf("==> sendfile DONE eagain=%d written=%llu\n\n",
+		   d->sendfile.eagain, d->sendfile.written);
+	    ef_send_ok_int64(d, d->caller, &d->sendfile.written);
+	    driver_select(d->port, (ErlDrvEvent)d->sendfile.out_fd,
+			  ERL_DRV_USE|ERL_DRV_WRITE, 0);
+	}
     } else if (errInfo.posix_errno == EAGAIN || errInfo.posix_errno == EINTR) {
-	if (count > 0) {
-	    d->sendfile.offset += count;
-	    d->sendfile.written += count;
-	    d->sendfile.count -= count;
+	if (chunksize > 0) {
+	    d->sendfile.offset += chunksize;
+	    d->sendfile.written += chunksize;
+	    d->sendfile.count -= chunksize;
 	}
 	d->sendfile.eagain++;
 
@@ -2648,6 +2658,9 @@ file_output(ErlDrvData e, char* buf, int count)
 	    desc->sendfile.count = get_int64(((uchar*) buf)
 					    + sizeof(Sint32)
 					    + sizeof(Sint64));
+	    desc->sendfile.chunksize = get_int64(((uchar*) buf)
+					    + sizeof(Sint32)
+					    + 2*sizeof(Sint64));
 	    desc->sendfile.written = 0;
 	    desc->sendfile.eagain = 0;
 	    /* TODO: shouldn't d->command be enough? */
