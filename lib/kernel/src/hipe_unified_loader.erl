@@ -219,7 +219,7 @@ load_common(Mod, Bin, Beam, OldReferencesToPatch) ->
       patch_consts(LabelMap, ConstAddr, CodeAddress),
       %% Find out which functions are being loaded (and where).
       %% Note: Addresses are sorted descending.
-      {MFAs,Addresses} = exports(ExportMap, CodeAddress),
+      {MFAs,Addresses} = exports(ExportMap, CodeAddress, CodeSize),
       %% Remove references to old versions of the module.
       ReferencesToPatch = get_refs_from(MFAs, []),
       remove_refs_from(MFAs),
@@ -335,18 +335,22 @@ trampoline_map_lookup(Primop, Map) ->
 -record(fundef, {address     :: integer(),
 		 mfa         :: mfa(),
 		 is_closure  :: boolean(),
-		 is_exported :: boolean()}).
+		 is_exported :: boolean(),
+		 size        :: integer()}).
 
-exports(ExportMap, BaseAddress) ->
-  exports(ExportMap, BaseAddress, [], []).
+%%------------------------------------------------------------------------
 
-exports([Offset,M,F,A,IsClosure,IsExported|Rest], BaseAddress, MFAs, Addresses) ->
+exports(ExportMap, BaseAddress, CodeSize) ->
+  exports(ExportMap, BaseAddress, CodeSize, [], []).
+
+exports([Offset,M,F,A,IsClosure,IsExported|Rest], BaseAddress, PreviousOffset, MFAs, Addresses) ->
   MFA = {M,F,A},
   Address = BaseAddress + Offset,
+  Size = PreviousOffset - Offset,
   FunDef = #fundef{address=Address, mfa=MFA, is_closure=IsClosure,
-		   is_exported=IsExported},
-  exports(Rest, BaseAddress, [MFA|MFAs], [FunDef|Addresses]);
-exports([], _, MFAs, Addresses) ->
+		   is_exported=IsExported, size=Size},
+  exports(Rest, BaseAddress,  Offset, [MFA|MFAs], [FunDef|Addresses]);
+exports([], _, PreviousOffset, MFAs, Addresses) ->
   {MFAs, Addresses}.
 
 mod({M,_F,_A}) -> M.
@@ -406,7 +410,7 @@ export_funs([]) ->
   true.
 
 export_funs(Mod, Beam, Addresses, ClosuresToPatch) ->
- Fs = [{F,A,Address} || #fundef{address=Address, mfa={_M,F,A}} <- Addresses],
+ Fs = [{F,A,Address,Size} || #fundef{address=Address, mfa={_M,F,A}, size=Size} <- Addresses],
  code:make_stub_module(Mod, Beam, {Fs,ClosuresToPatch}).
 
 %%========================================================================

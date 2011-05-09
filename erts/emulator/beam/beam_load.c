@@ -4966,10 +4966,10 @@ code_module_md5_1(Process* p, Eterm Bin)
     return new_binary(p, state.mod_md5, sizeof(state.mod_md5));
 }
 
-#define WORDS_PER_FUNCTION 6
+#define WORDS_PER_FUNCTION 7
 
 static BeamInstr*
-make_stub(BeamInstr* fp, Eterm mod, Eterm func, Uint arity, Uint native, BeamInstr OpCode)
+make_stub(BeamInstr* fp, Eterm mod, Eterm func, Uint arity, Uint native, Uint size, BeamInstr OpCode)
 {
     fp[0] = (BeamInstr) BeamOp(op_i_func_info_IaaI);
     fp[1] = native;
@@ -4980,6 +4980,7 @@ make_stub(BeamInstr* fp, Eterm mod, Eterm func, Uint arity, Uint native, BeamIns
     if (native) {
 	fp[5] = BeamOpCode(op_move_return_nr);
 	hipe_mfa_save_orig_beam_op(mod, func, arity, fp+5);
+	fp[6] = size;
     }
 #endif
     fp[5] = OpCode;
@@ -5358,6 +5359,8 @@ erts_make_stub_module(Process* p, Eterm Mod, Eterm Beam, Eterm Info)
 	Eterm arity_term;
 	Uint arity;
 	Uint native_address;
+	Eterm size_term;
+	Uint size;
 	Eterm op;
 
 	if (is_nil(Funcs)) {
@@ -5372,7 +5375,7 @@ erts_make_stub_module(Process* p, Eterm Mod, Eterm Beam, Eterm Info)
 	    goto error;
 	}
 	tp = tuple_val(tuple);
-	if (tp[0] != make_arityval(3)) {
+	if (tp[0] != make_arityval(4)) {
 	    goto error;
 	}
 	func = tp[1];
@@ -5388,6 +5391,10 @@ erts_make_stub_module(Process* p, Eterm Mod, Eterm Beam, Eterm Info)
 	    goto error;
 	}
 
+	size_term = tp[4];
+	/* TODO: insert check? */
+	size = signed_val(size_term);
+	
 	/*
 	 * Set the pointer and make the stub. Put a return instruction
 	 * as the body until we know what kind of trap we should put there.
@@ -5398,7 +5405,7 @@ erts_make_stub_module(Process* p, Eterm Mod, Eterm Beam, Eterm Info)
 #else
 	op = (Eterm) BeamOpCode(op_move_return_nr);
 #endif
-	fp = make_stub(fp, Mod, func, arity, (Uint)native_address, op);
+	fp = make_stub(fp, Mod, func, arity, (Uint)native_address, size, op);
     }
 
     /*
