@@ -24,7 +24,7 @@
 
 -module(ct_framework).
 
--export([init_tc/3, end_tc/4, get_suite/2, report/2, warn/1]).
+-export([init_tc/3, end_tc/3, end_tc/4, get_suite/2, report/2, warn/1]).
 -export([error_notification/4]).
 
 -export([overview_html_header/1]).
@@ -434,6 +434,9 @@ try_set_default(Name,Key,Info,Where) ->
 %%%
 %%% @doc Test server framework callback, called by the test_server
 %%% when a test case is finished.
+end_tc(Mod, Fun, Args) ->
+    %% Have to keep end_tc/3 for backwards compatabilty issues
+    end_tc(Mod, Fun, Args, '$end_tc_dummy').
 end_tc(?MODULE,error_in_suite,_, _) ->		% bad start!
     ok;
 end_tc(Mod,Func,{TCPid,Result,[Args]}, Return) when is_pid(TCPid) ->
@@ -490,9 +493,9 @@ end_tc(Mod,Func,TCPid,Result,Args,Return) ->
 		case ct_hooks:end_tc(
 			    Mod, FuncSpec, Args, Result, Return) of
 		    '$ct_no_change' ->
-			{FinalResult = ok,Result};
-		    FinalResult ->
-			{FinalResult,FinalResult}
+			{ok,Result};
+		    FinalResult1 ->
+			{FinalResult1,FinalResult1}
 		end,
 	    % send sync notification so that event handlers may print
 	    % in the log file before it gets closed
@@ -633,7 +636,7 @@ error_notification(Mod,Func,_Args,{Error,Loc}) ->
 	[{?MODULE,error_in_suite}] ->
 	    io:format(user, "Error in suite detected: ~s", [ErrStr]);
 
-	unknown ->
+	R when R == unknown;  R == undefined ->
 	    io:format(user, "Error detected: ~s", [ErrStr]);
 
 	%% if a function specified by all/0 does not exist, we
@@ -734,7 +737,7 @@ get_suite(Mod, Group={conf,Props,_Init,TCs,_End}) ->
 		    %% (and only) test case so we can report Error properly
 		    [{?MODULE,error_in_suite,[[Error]]}];
 		[] ->
-		    {error,{invalid_group_spec,Name}};
+		    [];
 		ConfTests ->
 		    case lists:member(skipped, Props) of
 			true ->
@@ -764,23 +767,7 @@ get_suite(Mod, Name) ->
 
 find_groups(Mod, Name, TCs, GroupDefs) ->
     Found = find(Mod, Name, TCs, GroupDefs, [], GroupDefs, false),
-    Trimmed = trim(Found),
-    %% I cannot find a reason to why this function is called,
-    %% It deletes any group which is referenced in any other
-    %% group. i.e.
-    %% groups() ->
-    %%   [{test, [], [testcase1]},
-    %%    {testcases, [], [{group, test}]}].
-    %% Would be changed to
-    %% groups() ->
-    %%   [{testcases, [], [testcase1]}].
-    %% instead of what I believe is correct:
-    %% groups() ->
-    %%   [{test, [], [testcase1]},
-    %%    {testcases, [], [testcase1]}].
-    %% Have to double check with peppe
-    delete_subs(Trimmed, Trimmed),
-    Trimmed.
+    trim(Found).
 
 find(Mod, all, _TCs, [{Name,Props,Tests} | Gs], Known, Defs, _) 
   when is_atom(Name), is_list(Props), is_list(Tests) ->
@@ -1170,12 +1157,14 @@ error_in_suite(Config) ->
 %% if the group config functions are missing in the suite,
 %% use these instead
 ct_init_per_group(GroupName, Config) ->
-    ct_logs:log("WARNING", "init_per_group/2 for ~w missing in suite, using default.", 
+    ct_logs:log("WARNING", "init_per_group/2 for ~w missing "
+		"in suite, using default.",
 		[GroupName]),
     Config.
 
 ct_end_per_group(GroupName, _) ->
-    ct_logs:log("WARNING", "end_per_group/2 for ~w missing in suite, using default.", 
+    ct_logs:log("WARNING", "end_per_group/2 for ~w missing "
+		"in suite, using default.",
 		[GroupName]),
     ok.
 
@@ -1184,6 +1173,13 @@ ct_end_per_group(GroupName, _) ->
 %%% @spec report(What,Data) -> ok
 report(What,Data) ->
     case What of
+	loginfo ->
+	    %% logfiles and direcories have been created for a test and the
+	    %% top level test index page needs to be refreshed
+	    TestName = filename:basename(proplists:get_value(topdir, Data), ".logs"),
+	    RunDir = proplists:get_value(rundir, Data),
+	    ct_logs:make_all_suites_index({TestName,RunDir}),
+	    ok;
 	tests_start ->
 	    case ct_util:get_testdata(cover) of
 		undefined -> 
