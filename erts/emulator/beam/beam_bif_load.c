@@ -654,12 +654,31 @@ purge_module(int module)
     end = (BeamInstr *)((char *)code + modp->old_code_length);
     erts_cleanup_funs_on_purge(code, end);
     beam_catches_delmod(modp->old_catches, code, modp->old_code_length);
+    free_native_code(code);
     erts_free(ERTS_ALC_T_CODE, (void *) code);
     modp->old_code = NULL;
     modp->old_code_length = 0;
     modp->old_catches = BEAM_CATCHES_NIL;
     remove_from_address_table(code);
     return 0;
+}
+
+void
+free_native_code(BeamInstr* code)
+{
+  Uint num_functions;
+  int i;
+  num_functions = code[MI_NUM_FUNCTIONS];
+  for (i = num_functions-1; i >= 0 ; i--) {
+    BeamInstr* func_info = (BeamInstr *) code[MI_FUNCTIONS+i];
+    Uint native = func_info[1];
+    if (native != 0) {
+      Uint size = func_info[6];
+      erts_fprintf(stderr, "native address: %i size: %i", native, size);
+      // TODO: Actually free the code.
+    }
+  }  
+    
 }
 
 static void
