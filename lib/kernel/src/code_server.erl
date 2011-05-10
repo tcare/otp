@@ -1415,6 +1415,12 @@ do_purge([], Mod, Purged, #state{nativedb=NativeDb} = St) ->
 	    OldCode
     end,
     catch erlang:purge_module(Mod),
+    case OldCode of
+	undefined ->
+	    ok;
+	{CodeAddress, CodeSize} ->
+	    hipe_bifs:free_code(CodeAddress, CodeSize)
+    end,
     Purged.
 
 %% do_soft_purge(Module)
