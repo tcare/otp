@@ -233,6 +233,9 @@ system_code_change(State, _Module, _OldVsn, _Extra) ->
 %% The gen_server call back functions.
 %%
 
+handle_call({print_native}, {_From,_Tag}, #state{nativedb = NativeDb} = S) ->
+    Res = ets:foldl(fun(X, Acc) -> [X | Acc] end, [], NativeDb),
+    {reply,Res,S};
 handle_call({stick_dir,Dir}, {_From,_Tag}, S) ->
     {reply,stick_dir(Dir, true, S),S};
 

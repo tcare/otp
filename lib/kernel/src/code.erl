@@ -22,7 +22,8 @@
 %% some implementation details.  See also related modules: code_*.erl
 %% in this directory.
 
--export([objfile_extension/0, 
+-export([dbg_print_native/0,
+	 objfile_extension/0, 
 	 set_path/1, 
 	 get_path/0, 
 	 load_file/1,
@@ -122,6 +123,8 @@
 %%----------------------------------------------------------------------------
 %% User interface
 %%----------------------------------------------------------------------------
+dbg_print_native() ->
+    call({print_native}).
 
 -spec objfile_extension() -> nonempty_string().
 objfile_extension() ->
